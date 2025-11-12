@@ -112,13 +112,23 @@ def good_ak8jets(
     return fatjets[fatjet_sel]
 
 
-def good_ak4jets(jets: JetArray, nano_version: str):
-    if nano_version.startswith("v12"):
-        jetidtight, jetidtightlepveto = jetid_v12(jets)  # v12 jetid fix
-    else:
-        raise NotImplementedError(f"Jet ID fix not implemented yet for {nano_version}")
-    jet_sel = (jets.pt > 15) & (np.abs(jets.eta) < 4.7) & jetidtight & jetidtightlepveto
+def good_ak4jets(jets: JetArray, nano_version: str, events,  muon_pt: float, electron_pt: float, dr_leptons:float):
+    #if nano_version.startswith("v12"):
+    #    jetidtight, jetidtightlepveto = jetid_v12(jets)  # v12 jetid fix
+    #else:
+    #    raise NotImplementedError(f"Jet ID fix not implemented yet for {nano_version}")
+    electrons = events.Electron
+    electrons = electrons[electrons.pt > electron_pt]
 
+    muons = events.Muon
+    muons = muons[muons.pt > muon_pt]
+
+    jet_sel = (
+        (jets.pt > 15)
+        & (np.abs(jets.eta) < 4.7)
+        & ak.all(jets.metric_table(electrons) > dr_leptons, axis=2)
+        & ak.all(jets.metric_table(muons) > dr_leptons, axis=2)
+     )
     return jets[jet_sel]
 
 
@@ -142,10 +152,10 @@ Trigger quality bits in NanoAOD v12
 
 
 def good_electrons(events, leptons: ElectronArray, year: str):
-    # from https://indico.cern.ch/event/1495537/contributions/6355656/attachments/3012754/5312393/2025.02.11_Run3HHbbtautau_CMSweek.pdf
     trigobj = events.TrigObj
 
     # baseline kinematic selection
+    # https://twiki.cern.ch/twiki/bin/view/CMS/MultivariateElectronIdentificationRun3
     lsel = (
         leptons.mvaIso_WP90
         & (leptons.pt > 20)
@@ -156,7 +166,7 @@ def good_electrons(events, leptons: ElectronArray, year: str):
     leptons = leptons[lsel]
 
     # Trigger: (filterbit, ptcut for matched lepton)
-    triggers = {"EGamma": (1, 31), "ETau": (6, 25)}
+    triggers = {"EGamma": (1, 31)}
     trig_leptons = trigobj[trigobj.id == PDGID.e]
 
     TrigMatchDict = {
@@ -188,20 +198,20 @@ Trigger quality bits in NanoAOD v12
 
 
 def good_muons(events, leptons: MuonArray, year: str):
-    # from https://indico.cern.ch/event/1495537/contributions/6355656/attachments/3012754/5312393/2025.02.11_Run3HHbbtautau_CMSweek.pdf
     trigobj = events.TrigObj
 
     lsel = (
         leptons.tightId
+        & (leptons.pfRelIso04_all < 0.15)
         & (leptons.pt > 20)
         & (abs(leptons.eta) < 2.4)
         & (abs(leptons.dz) < 0.2)
         & (abs(leptons.dxy) < 0.045)
     )
     leptons = leptons[lsel]
-
+ 
     # Trigger: (filterbit, ptcut for matched lepton)
-    triggers = {"Muon": (3, 26), "MuonTau": (6, 22)}
+    triggers = {"Muon": (3, 26)}
     trig_leptons = trigobj[trigobj.id == PDGID.mu]
 
     TrigMatchDict = {
@@ -311,20 +321,19 @@ def vbf_jets(
     return jets[ak4_sel][:, :2]
 
 
-def ak4_jets_awayfromak8(
+def ak4_bjet( #Conver into bjet seletion, overlap with ak8 is ok
     jets: JetArray,
-    fatjets: FatJetArray,
     events,
     pt: float,
+    bcut: float, 
     id: str,  # noqa: ARG001
     eta_max: float,
-    dr_fatjets: float,
     dr_leptons: float,
     electron_pt: float,
     muon_pt: float,
-    sort_by: str = "btag",
+    sort_by: str = "pt",
 ):
-    """AK4 jets nonoverlapping with AK8 fatjets"""
+    """AK4 b-jets nonoverlapping with leptons"""
     electrons = events.Electron
     electrons = electrons[electrons.pt > electron_pt]
 
@@ -334,49 +343,13 @@ def ak4_jets_awayfromak8(
     ak4_sel = (
         (jets.pt >= pt)
         & (np.abs(jets.eta) <= eta_max)
-        & (ak.all(jets.metric_table(fatjets) > dr_fatjets, axis=2))
         & ak.all(jets.metric_table(electrons) > dr_leptons, axis=2)
         & ak.all(jets.metric_table(muons) > dr_leptons, axis=2)
+        & (jets.btagRobustParTAK4B >= bcut)
     )
 
-    # return top 2 jets sorted by btagPNetB
-    if sort_by == "btag":
-        jets_pnetb = jets[ak.argsort(jets.btagPNetB, ascending=False)]
-        return jets_pnetb[ak4_sel][:, :2]
-    # return 2 jets closet to bbFatjet and ttFatjet, respectively
-    elif sort_by == "nearest":
-        jets_away = jets[ak4_sel]
-        bbFatjet = ak.firsts(
-            fatjets[
-                ak.argsort(
-                    fatjets["globalParT_XbbvsQCDTop"],
-                    ascending=False,
-                )
-            ][:, 0:1]
-        )
 
-        ttFatjet = ak.firsts(
-            fatjets[
-                ak.argsort(
-                    sum(
-                        fatjets[f"globalParT_X{tautau}vsQCDTop"]
-                        for tautau in ["tauhtauh", "tauhtaue", "tauhtaum"]
-                    ),
-                    ascending=False,
-                )
-            ][:, 0:1]
-        )
-
-        jet_near_bbFatjet = jets_away[ak.argsort(jets_away.delta_r(bbFatjet), ascending=True)][
-            :, 0:1
-        ]
-        jet_near_ttFatjet = jets_away[ak.argsort(jets_away.delta_r(ttFatjet), ascending=True)][
-            :, 0:1
-        ]
-        return [jet_near_bbFatjet, jet_near_ttFatjet]
-    # return all nonoverlapping jets, no sorting
-    else:
-        return jets[ak4_sel]
+    return jets[ak4_sel]
 
 #adopted from https://github.com/scikit-hep/coffea/blob/a315da1fa307f1ec0d21c29e908e5b733603d7c0/src/coffea/nanoevents/methods/vector.py#L106
 def delta_r(eta1, phi1, eta2, phi2):
