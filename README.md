@@ -6,14 +6,14 @@ First, create a virtual environment (`micromamba` is recommended):
 
 ```bash
 # Clone the repository
-git clone --recursive https://github.com/LPC-HH/bbtautau.git
-cd bbtautau
+git clone --recursive https://github.com/cramonal/Calib_ChargeTagger.git
+cd Calib_ChargeTagger
 # Download the micromamba setup script (change if needed for your machine https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
 # Install: (the micromamba directory can end up taking O(1-10GB) so make sure the directory you're using allows that quota)
 "${SHELL}" <(curl -L micro.mamba.pm/install.sh)
 # You may need to restart your shell
 micromamba env create -f environment.yaml
-micromamba activate hh
+micromamba activate ttbar
 ```
 
 ### Installing package
@@ -54,13 +54,13 @@ For running locally, follow the same virtual environment setup instructions
 above and activate the environment.
 
 ```bash
-micromamba activate hh
+micromamba activate ttbar
 ```
 
 Clone the repository:
 
 ```
-git clone https://github.com/LPC-HH/bbtautau/
+git clone --recursive https://github.com/cramonal/Calib_ChargeTagger.git
 pip install -e .
 ```
 
