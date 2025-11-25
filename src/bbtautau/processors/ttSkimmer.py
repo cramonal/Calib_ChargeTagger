@@ -110,13 +110,13 @@ class ttSkimmer(SkimmerABC):
             #2btags
             }
 
-
+    bcut = 0.4319
     ak4_bjet_selection = {  # noqa: RUF012
             "pt": 25,
             "eta_max": 2.5,
             "id": "tight",
             "dr_leptons": 0.4,
-            "bcut" : 0.4319
+            "bcut" : bcut
             }
 
     ak4_bjet_lepton_selection = {  # noqa: RUF012
@@ -440,6 +440,7 @@ class ttSkimmer(SkimmerABC):
         eventVars["nElectrons"] = ak.num(electrons).to_numpy()
         eventVars["nMuons"] = ak.num(muons).to_numpy()
         eventVars["nJets"] = ak.num(jets).to_numpy()
+        eventVars["nBJets"] = ak.num(jets[jets.btagRobustParTAK4B >= bcut]).to_numpy()
 
         # jin for CA
         # eventVars["CA_matched_tau_pt_sum"] = ca_tau_pt_sum.to_numpy()
